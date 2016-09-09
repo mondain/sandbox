@@ -16,7 +16,26 @@ nc.call("switchLiveStream", null, "streamNameToSwitchTo");
 ## Screen Shots
 Below are screenshots of the app in-action
 
-IMAGES HERE
+Publisher #1
+
+![](images/publisher1.png?raw=true)
+
+Viewing #1
+
+![](images/viewing.png?raw=true)
+
+Viewing #2
+
+![](images/viewing2.png?raw=true)
+
+Switcher
+
+![](images/switcher.png?raw=true)
+
+Switched
+
+![](images/switcher2.png?raw=true)
+
 
 ---
 This app started life as a support ticket over at [Infrared5](http://infrared5.com) for a [Red5 Pro](http://red5pro.com/) customer.
