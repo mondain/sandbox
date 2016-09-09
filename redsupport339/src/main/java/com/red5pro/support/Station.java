@@ -88,7 +88,7 @@ public class Station {
      * @param outgoingStreamName Name of the outgoing stream
      */
     public Station(IScope scope, String outgoingStreamName) {
-        log.info("Created new Station for scope: {} with outgoing stream: {}", scope.getName(), outgoingStreamName);
+        log.info("Created new station for scope: {} with outgoing stream: {}", scope.getName(), outgoingStreamName);
         this.scope = scope;
         this.outgoingStreamName = outgoingStreamName;
     }
@@ -101,12 +101,18 @@ public class Station {
     public boolean createFeed() {
         log.info("Creating server stream");
         outgoingFeed = new ClientBroadcastStream();
+        outgoingFeed.setStreamId(1);
         outgoingFeed.setPublishedName(outgoingStreamName);
         outgoingFeed.setScope(scope);
+        // if re-set of cbs doesnt work for quick-start we'll connect a dummy connection
+        // IStreamCapableConnection
         // register the stream
         IProviderService providerService = (IProviderService) scope.getContext().getBean(IProviderService.BEAN_NAME);
         if (providerService.registerBroadcastStream(scope, outgoingFeed.getPublishedName(), outgoingFeed)) {
             log.info("Stream: {} registered on scope: {}", outgoingStreamName, scope.getName());
+            // set / re-set the stream on the scope
+            //IBroadcastScope bsScope = scope.getBroadcastScope(outgoingStreamName);
+            //bsScope.setClientBroadcastStream(outgoingFeed);
             // start feeding
             outgoingFeeder = Application.submit(new Runnable() {
     
@@ -114,6 +120,8 @@ public class Station {
                 public void run() {
                     // sleep the task when nothing is in the queue
                     try {
+                        // start publishing
+                        outgoingFeed.startPublishing();
                         do {
                             IRTMPEvent out = queue.poll();
                             if (out != null) {
@@ -131,6 +139,8 @@ public class Station {
                 }
 
             });
+            // set active flag
+            active.set(true);
             // all is well
             return true;
         } else {
@@ -145,11 +155,27 @@ public class Station {
      * @param stream publishing stream source
      */
     public void addFeed(IBroadcastStream stream) {
-        String streamName = stream.getPublishedName();
+        final String streamName = stream.getPublishedName();
         // dont add our station outgoing stream to feeds
         if (!outgoingStreamName.equals(streamName)) {
             log.info("Add feed: {}", streamName);
             feeds.put(streamName, stream);
+        }
+        // switch to the first feed that comes if none are currently selected
+        if (feeds.size() == 1 && selectedFeedName == null) {
+            // send the switch null to get the stream started
+            Application.submit(new Runnable() {
+
+                public void run() {
+                    // sleep a hundredth of a second
+                    try {
+                        Thread.sleep(10L);
+                    } catch (InterruptedException e) {
+                    }
+                    switchFeed(streamName);
+                }
+
+            });
         }
     }
 
@@ -194,18 +220,24 @@ public class Station {
      */
     public boolean switchFeed(String feedName) {
         log.info("Switch source stream to {} from {}", feedName, selectedFeedName);
-        // cancel the listener
-        if (sourceListener != null && sourceListener.cancel(true)) {
-            log.info("Source feed listener cancelled");
-        }
         // special stream name to clear the selected stream and not replace it
-        if ("null".equals(feedName)) {
+        if (feedName == null || "null".equals(feedName)) {
             // clear selected name
             this.selectedFeedName = null;
             // return true since we've cleared the stream
             return true;
         } else {
-            this.selectedFeedName = feedName;
+            // check for the requested feed and fail if not registered
+            if (feeds.containsKey(feedName)) {
+                this.selectedFeedName = feedName;
+            } else {
+                log.info("Requested source not found: {}", feedName);
+                return false;
+            }
+        }
+        // cancel the listener
+        if (sourceListener != null && sourceListener.cancel(true)) {
+            log.info("Source feed listener cancelled");
         }
         // create a stream listener to feed the outgoing stream queue and a task to feed the outgoing stream and lastly to remove the listener
         log.info("Starting listener for {}", selectedFeedName);
@@ -291,6 +323,7 @@ public class Station {
      */
     public void stop() {
         if (active.compareAndSet(true, false)) {
+            log.info("Stopping station for scope: {}", scope.getName());
             // close it all down
             IProviderService providerService = (IProviderService) scope.getContext().getBean(IProviderService.BEAN_NAME);
             if (!feeds.isEmpty()) {

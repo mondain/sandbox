@@ -39,7 +39,8 @@ public class Application extends MultiThreadedApplicationAdapter {
 
     @Override
     public boolean appStart(IScope app) {
-        log.info("Starting app: {}", app.getName());
+        final String name = app.getName();
+        log.info("Starting app: {}", name);
         // create a Station for the room on start
         if (!stations.containsKey(app)) {
             // create a new station
@@ -71,7 +72,8 @@ public class Application extends MultiThreadedApplicationAdapter {
 
     @Override
     public boolean roomStart(IScope room) {
-        log.info("Starting room: {}", room.getName());
+        final String name = room.getName();
+        log.info("Starting room: {}", name);
         // create a Station for the room on start
         if (!stations.containsKey(room)) {
             // create a new station
